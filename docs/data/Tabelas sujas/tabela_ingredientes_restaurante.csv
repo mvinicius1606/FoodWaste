@@ -1,0 +1,23 @@
+id_estoque,data_estoque,id_ingredientes,ingredientes,quantidade_ingredientes,preço_ingredientes
+1,2024-11-01,1,Arroz Branco,45,R$ 356.4
+2,01/11/2024,2,Feijão Preto,36,311.85
+3,2024-11-01,3,Macarrão Espaguete,49,888.3
+4,2024-11-01,4,Farinha de Trigo,53,819
+5,01/11/2024,5,Filé Mignon,10,803.6
+6,2024-11-01,6,Picanha,9,946.4
+7,2024-11-01,7,Salmão,13 kg,742.5
+8,2024-11-01,8,Camarão,15,745.2
+9,01/11/2024,9,Peito de Frango,32,611
+10,2024-11-01,10,Carne Moída (Patinho),32,668.25
+11,2024-11-01,11,Bacon,23,441
+12,01-11-2024,12,Presunto,15,693
+13,01/11/2024,13,Queijo Mussarela,20,445.5
+14,2024-11-01,14,Manteiga,20 kg,
+15,2024-11-01,15,Leite Integral,19,R$ 141
+16,01/11/2024,16,Ovos,11,260.1
+17,2024-11-01,17,Batata Inglesa,18,183.75
+18,2024-11-01,18,Cenoura,30,204
+19,01/11/2024,19,Cebola,16,133.75
+20,2024-11-01,20,Alface Americana,7,R$ 128.75
+21,01-11-2024,21,Molho de Tomate,22 kg,309
+22,2024-11-01,22,Sal,3,60.5
