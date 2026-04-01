@@ -5,7 +5,7 @@ Este branch armazena os datasets brutos gerados para o projeto de análise de de
 ## 🔄 Como Reproduzir (Mockaroo)
 
 Os scripts (JSON Schemas) utilizados para configurar a lógica de geração de cada tabela estão armazenados neste repositório, no diretório:
-> **`docs/data/mockaroo/`**
+> **`docs/data/codigos_mockaroo/`**
 
 Caso queira gerar novos dados ou alterar as regras de negócio, siga este passo a passo:
 
@@ -15,6 +15,7 @@ Caso queira gerar novos dados ou alterar as regras de negócio, siga este passo 
 4.  Cole o código JSON e clique em **Import**.
 5.  Configure o número de linhas (**# Rows**) e o formato (**Format**) conforme a tabela de especificações abaixo (Seção "Estrutura das Tabelas").
 6.  Clique em **Download Data**.
+
 
 ## 🤖 Processo de Criação e Metodologia
 
@@ -41,7 +42,7 @@ Para simular um ambiente real de Big Data onde as fontes de dados são diversas 
 
 ---
 
-## 📊 Estrutura e Racional das Tabelas
+## 📊 Estrutura das Tabelas
 
 Abaixo estão detalhados o propósito de criação de cada dataset, suas colunas e a lógica aplicada.
 
@@ -97,6 +98,7 @@ O objetivo é praticar técnicas de **Data Cleaning e Data Quality**. Ao manipul
 * **Valores Nulos (Null/NaN):** Campos obrigatórios vazios que exigirão estratégias de inputação ou remoção.
 * **Tipagem Mista:** Campos numéricos (como peso e preço) contaminados com texto (ex: `50kg`, `R$ 120,00`) exigindo limpeza de strings e conversão de tipos (Casting).
 
+Para visualizar as tabelas sujas basta acessar: **`docs/data/Tabelas sujas/`**
 ## 🎯 Objetivos de Análise
 
 Após o tratamento (ETL), estes dados formam a base para:
@@ -107,4 +109,4 @@ Após o tratamento (ETL), estes dados formam a base para:
 # Autor
 Marcos Vinicius Vieira dos Santos Assis
 
-RIO DE JANEIRO - 2025
+RIO DE JANEIRO - 2026
