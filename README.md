@@ -46,4 +46,26 @@ Utilizamos **PyTorch** para desenvolver um modelo preditivo capaz de:
 
 ---
 
-## 📊 Observ
+## 📊 Observabilidade e Visualização
+
+* **Logging:** Centralização de logs de execução e erros no **Amazon CloudWatch**, permitindo rastrear falhas na ingestão ou no treinamento do modelo.
+* **Dashboards:** Visualização dinâmica em **PowerBI / Tableau**, apresentando:
+    * Índice de desperdício por ingrediente/prato.
+    * ROI (Retorno sobre Investimento) da implementação.
+    * Métricas de acurácia das predições.
+
+---
+
+## 🛠️ Como Executar (Localmente via Docker)
+
+Caso deseje replicar o ambiente localmente:
+
+```bash
+# 1. Clone o repositório
+git clone [https://github.com/seu-usuario/foodwaste.git](https://github.com/seu-usuario/foodwaste.git)
+
+# 2. Construa a imagem Docker
+docker build -t foodwaste-app .
+
+# 3. Execute o container de ingestão/análise
+docker run --env-file .env foodwaste-app
