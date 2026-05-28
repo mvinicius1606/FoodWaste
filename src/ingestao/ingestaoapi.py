@@ -24,22 +24,20 @@ console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
 
 try:
-    
-    boto3_session = boto3.Session(
+    cliente_aws = boto3.client(
+        'logs',
         aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
         aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
         region_name=os.getenv('AWS_REGION')
     )
 
+    # Ajustado o nome da variável aqui para 'cloudwatch_handler'
     cloudwatch_handler = watchtower.CloudWatchLogHandler(
-        boto3_session=boto3_session,
-        log_group_name="inegstao-foodwaste-pipeline-logs",
-        log_stream_name=f"ingestao-api-{datetime.now().strftime('%Y-%m-%d')}",
-        create_log_group=True,
-        create_log_stream=True,
-        use_queues=True
+        boto3_client=cliente_aws, 
+        log_group_name="FoodWasteLogs"
     )
 
+    # Agora o nome bate perfeitamente!
     logger.addHandler(cloudwatch_handler)
     logger.info("CloudWatch logging configured successfully.")  
 

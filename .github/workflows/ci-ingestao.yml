@@ -1,20 +1,62 @@
-name: Pipeline Ingestão FoodWaste
+name: FoodWaste Ingestion Pipeline CI
 
+# 1. Essa esteira de CI roda automaticamente toda vez que alguém fizer um push ou abrir um pull request na branch "main". Assim, a gente garante que o código que vai para produção está sempre testado e saudável.
 on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
   schedule:
+    # Roda toda segunda-feira exatamente às 09:00 no horário de Brasília (12:00 UTC)
     - cron: '0 12 * * 1'
-  
-  workflow_dispatch:
 
 jobs:
-  disparar_ingestao:
+  # JOBS 1: Testar e validar a qualidade do código Python
+  lint-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Executando chamada para Ingestão de Vendas
-        run: |
-          curl -X POST "http://O_IP_DA_SUA_MAQUINA_OU_URL:8000/ingestao/vendas-semanais"
+    # Passo 1: Baixar o código do seu repositório para a máquina do GitHub
+    - name: Checkout do código
+      uses: actions/checkout@v4
 
-      - name: Executando chamada para Ingestão de Ingredientes
-        run: |
-          curl -X POST "http://O_IP_DA_SUA_MAQUINA_OU_URL:8000/ingestao/estoque-ingredientes"
+    # Passo 2: Instalar a versão correta do Python na máquina deles
+    - name: Configurar Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    # Passo 3: Instalar as dependências do projeto para ver se dá erro
+    - name: Instalar dependências
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f src/ingestao/requirements.txt ]; then pip install -r src/ingestao/requirements.txt; fi
+
+    # Passo 4: Uma verificação simples de sintaxe para ver se esqueceu alguma vírgula ou parêntese
+    - name: Lint com flake8 (Erros de sintaxe)
+      run: |
+        pip install flake8
+        # Para o build se houver erros de sintaxe Python
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --stats
+
+  # JOB 2: Simular o Build do Docker para garantir que a imagem está saudável
+  docker-build-test:
+    needs: lint-and-test # Só roda se o teste de cima passar!
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Docker Buildx
+      uses: actions/setup-buildx-action@v3
+
+    # Tenta buildar a imagem usando o seu Dockerfile
+    - name: Testar Build da Imagem Docker
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: src/ingestao/Dockerfile
+        push: false
+        
