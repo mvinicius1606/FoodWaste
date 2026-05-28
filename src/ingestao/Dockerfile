@@ -13,7 +13,7 @@ COPY ./src/ingestao ./ingestao
 
 # 5. Copia o arquivo .env para a raiz
 # Garante que o .env da raiz do projeto vá para a raiz do container (/app)
-COPY .env /app/.env
+#COPY .env /app/.env
 
 # 6. O COMANDO DO UVICORN
 CMD ["uvicorn", "ingestao.ingestaoapi:app", "--host", "0.0.0.0", "--port", "8000"]
