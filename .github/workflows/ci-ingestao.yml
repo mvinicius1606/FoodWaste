@@ -36,7 +36,7 @@ jobs:
 
   # JOB 2: Simular o Build do Docker para garantir que a imagem está saudável
   docker-build-test:
-    needs: lint-and-test # Só roda se o teste de cima passar!
+    needs: lint-and-test
     runs-on: ubuntu-latest
 
     steps:
@@ -44,9 +44,8 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Configurar Docker Buildx
-      uses: actions/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v3
 
-    # Tenta buildar a imagem usando o seu Dockerfile
     - name: Testar Build da Imagem Docker
       uses: docker/build-push-action@v5
       with:
