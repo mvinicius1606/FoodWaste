@@ -38,7 +38,7 @@ jobs:
       run: |
         pip install flake8
         # Para o build se houver erros de sintaxe Python
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --stats
+        flake8 . --count --select=E9,F63,F7,F82 --show-source 
 
   # JOB 2: Simular o Build do Docker para garantir que a imagem está saudável
   docker-build-test:
