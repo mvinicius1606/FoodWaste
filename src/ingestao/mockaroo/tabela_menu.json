@@ -1,0 +1,31 @@
+[
+    {
+        "name": "_row_num",
+        "type": "Row Number"
+    },
+    {
+        "name": "id_prato",
+        "type": "Formula",
+        "value": "db = [[101, 'Filé à Parmegiana', 'Filé Mignon', 0.250, 700, 72.00],[101, 'Filé à Parmegiana', 'Queijo Mussarela', 0.100, 700, 72.00],[101, 'Filé à Parmegiana', 'Molho de Tomate', 0.150, 700, 72.00],[101, 'Filé à Parmegiana', 'Arroz Branco', 0.150, 700, 72.00],[102, 'Feijoada Completa', 'Feijão Preto', 0.300, 800, 59.90],[102, 'Feijoada Completa', 'Bacon', 0.100, 800, 59.90],[102, 'Feijoada Completa', 'Arroz Branco', 0.200, 800, 59.90],[103, 'Salada Caesar', 'Alface Americana', 0.150, 300, 32.00],[103, 'Salada Caesar', 'Peito de Frango', 0.100, 300, 32.00],[103, 'Salada Caesar', 'Queijo Mussarela', 0.050, 300, 32.00],[104, 'Estrogonofe de Frango', 'Peito de Frango', 0.250, 500, 38.50],[104, 'Estrogonofe de Frango', 'Arroz Branco', 0.150, 500, 38.50],[104, 'Estrogonofe de Frango', 'Batata Inglesa', 0.100, 500, 38.50],[105, 'Picanha na Chapa', 'Picanha', 0.400, 600, 129.90],[105, 'Picanha na Chapa', 'Sal', 0.010, 600, 129.90],[106, 'Macarrão ao Sugo', 'Macarrão Espaguete', 0.300, 450, 28.00],[106, 'Macarrão ao Sugo', 'Molho de Tomate', 0.150, 450, 28.00],[107, 'Risoto de Camarão', 'Camarão', 0.200, 450, 85.00],[107, 'Risoto de Camarão', 'Arroz Branco', 0.150, 450, 85.00],[107, 'Risoto de Camarão', 'Manteiga', 0.050, 450, 85.00],[108, 'Salmão com Legumes', 'Salmão', 0.250, 500, 92.00],[108, 'Salmão com Legumes', 'Cenoura', 0.100, 500, 92.00],[108, 'Salmão com Legumes', 'Batata Inglesa', 0.150, 500, 92.00],[109, 'Carbonara à Brasileira', 'Macarrão Espaguete', 0.250, 500, 45.00],[109, 'Carbonara à Brasileira', 'Bacon', 0.100, 500, 45.00],[109, 'Carbonara à Brasileira', 'Ovos', 0.100, 500, 45.00],[109, 'Carbonara à Brasileira', 'Queijo Mussarela', 0.050, 500, 45.00],[110, 'Bife Acebolado', 'Filé Mignon', 0.200, 600, 68.00],[110, 'Bife Acebolado', 'Cebola', 0.150, 600, 68.00],[110, 'Bife Acebolado', 'Arroz Branco', 0.200, 600, 68.00],[111, 'Escondidinho de Carne', 'Carne Moída (Patinho)', 0.250, 550, 35.00],[111, 'Escondidinho de Carne', 'Batata Inglesa', 0.250, 550, 35.00],[111, 'Escondidinho de Carne', 'Leite Integral', 0.050, 550, 35.00],[112, 'Misto Quente de Prato', 'Presunto', 0.100, 250, 22.00],[112, 'Misto Quente de Prato', 'Queijo Mussarela', 0.100, 250, 22.00]]; idx = (field('_row_num') - 1) % db.length; db[idx][0]"
+    },
+    {
+        "name": "prato",
+        "type": "Formula",
+        "value": "idx = (field('_row_num') - 1) % 35; db = [...]; db[idx][1]"
+    },
+    {
+        "name": "ingrediente",
+        "type": "Formula",
+        "value": "idx = (field('_row_num') - 1) % 35; db = [...]; db[idx][2]"
+    },
+    {
+        "name": "qtd_base_kg",
+        "type": "Formula",
+        "value": "idx = (field('_row_num') - 1) % 35; db = [...]; db[idx][3]"
+    },
+    {
+        "name": "preço_venda",
+        "type": "Formula",
+        "value": "idx = (field('_row_num') - 1) % 35; db = [...]; db[idx][5]"
+    }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "name": "id_venda",
+    "type": "Row Number",
+    "formula": ""
+  },
+  {
+    "name": "_master_venda",
+    "type": "Formula",
+    "value": "menu = [\n  {\"id\" => 101, \"n\" => 'Filé à Parmegiana', \"p\" => 72.00, \"ings\" => ['Filé Mignon', 'Queijo Mussarela', 'Molho de Tomate', 'Arroz Branco']},\n  {\"id\" => 102, \"n\" => 'Feijoada Completa', \"p\" => 59.90, \"ings\" => ['Feijão Preto', 'Bacon', 'Arroz Branco']},\n  {\"id\" => 103, \"n\" => 'Salada Caesar', \"p\" => 32.00, \"ings\" => ['Alface Americana', 'Peito de Frango', 'Queijo Mussarela']},\n  {\"id\" => 104, \"n\" => 'Estrogonofe de Frango', \"p\" => 38.50, \"ings\" => ['Peito de Frango', 'Arroz Branco', 'Batata Inglesa']},\n  {\"id\" => 105, \"n\" => 'Picanha na Chapa', \"p\" => 129.90, \"ings\" => ['Picanha', 'Sal']},\n  {\"id\" => 106, \"n\" => 'Macarrão ao Sugo', \"p\" => 28.00, \"ings\" => ['Macarrão Espaguete', 'Molho de Tomate']},\n  {\"id\" => 107, \"n\" => 'Risoto de Camarão', \"p\" => 85.00, \"ings\" => ['Camarão', 'Arroz Branco', 'Manteiga']},\n  {\"id\" => 108, \"n\" => 'Salmão com Legumes', \"p\" => 92.00, \"ings\" => ['Salmão', 'Cenoura', 'Batata Inglesa']},\n  {\"id\" => 109, \"n\" => 'Carbonara à Brasileira', \"p\" => 45.00, \"ings\" => ['Macarrão Espaguete', 'Bacon', 'Ovos', 'Queijo Mussarela']},\n  {\"id\" => 110, \"n\" => 'Bife Acebolado', \"p\" => 68.00, \"ings\" => ['Filé Mignon', 'Cebola', 'Arroz Branco']},\n  {\"id\" => 111, \"n\" => 'Escondidinho de Carne', \"p\" => 35.00, \"ings\" => ['Carne Moída (Patinho)', 'Batata Inglesa', 'Leite Integral']},\n  {\"id\" => 112, \"n\" => 'Misto Quente de Prato', \"p\" => 22.00, \"ings\" => ['Presunto', 'Queijo Mussarela']}\n];\nprato_sorteado = menu.sample;\nprato_sorteado"
+  },
+  {
+    "name": "id_cliente",
+    "type": "Formula",
+    "value": "random(1001, 1050)"
+  },
+  {
+    "name": "nome_cliente",
+    "type": "Full Name",
+    "formula": ""
+  },
+  {
+    "name": "id_prato_fk",
+    "type": "Formula",
+    "value": "field('_master_venda')['id']"
+  },
+  {
+    "name": "prato_comprado",
+    "type": "Formula",
+    "value": "field('_master_venda')['n']"
+  },
+  {
+    "name": "data_venda",
+    "type": "Date",
+    "min": "2026-05-04",
+    "max": "2026-05-10"
+  },
+  {
+    "name": "valor_gasto",
+    "type": "Formula",
+    "value": "preco = field('_master_venda')['p'];\nr = random(0,100);\nif r < 8 then \"R$ #{preco}\" else preco end"
+  },
+  {
+    "name": "desperdicio_bool",
+    "type": "Boolean",
+    "probability": 0.28
+  },
+  {
+    "name": "desperdicio_clientes",
+    "type": "Formula",
+    "value": "if field('desperdicio_bool');\n  ings = field('_master_venda')['ings'];\n  # Uso correto da funcao random permitida pelo Mockaroo\n  qtd_itens = random(1, 2);\n  ings.sample(qtd_itens).join(', ');\nelse;\n  nil;\nend"
+  },
+  {
+    "name": "quantidade_desperdiçada_g",
+    "type": "Formula",
+    "value": "if field('desperdicio_bool');\n  qty = random(30, 180);\n  r = random(0,100);\n  if r < 10 then \"#{qty}g\" else qty end;\nelse;\n  0;\nend"
+  }
+]

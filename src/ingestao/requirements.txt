@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+httpx
+boto3
+watchtower
+python-dotenv
+dicttoxml

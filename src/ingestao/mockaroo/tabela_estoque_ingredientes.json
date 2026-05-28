@@ -1,0 +1,37 @@
+[
+  {
+    "name": "id_estoque",
+    "type": "Row Number",
+    "formula": ""
+  },
+  {
+    "name": "_master_ing",
+    "type": "Formula",
+    "value": "db = [\n  {\"id\" => 1, \"n\" => 'Filé Mignon', \"cat\" => 'carne_nobre'},\n  {\"id\" => 2, \"n\" => 'Queijo Mussarela', \"cat\" => 'frios'},\n  {\"id\" => 3, \"n\" => 'Molho de Tomate', \"cat\" => 'liquido'},\n  {\"id\" => 4, \"n\" => 'Arroz Branco', \"cat\" => 'grao'},\n  {\"id\" => 5, \"n\" => 'Feijão Preto', \"cat\" => 'grao'},\n  {\"id\" => 6, \"n\" => 'Bacon', \"cat\" => 'frios'},\n  {\"id\" => 7, \"n\" => 'Alface Americana', \"cat\" => 'verdura'},\n  {\"id\" => 8, \"n\" => 'Peito de Frango', \"cat\" => 'carne_comum'},\n  {\"id\" => 9, \"n\" => 'Batata Inglesa', \"cat\" => 'legume'},\n  {\"id\" => 10, \"n\" => 'Picanha', \"cat\" => 'carne_nobre'},\n  {\"id\" => 11, \"n\" => 'Sal', \"cat\" => 'tempero'},\n  {\"id\" => 12, \"n\" => 'Macarrão Espaguete', \"cat\" => 'massa'},\n  {\"id\" => 13, \"n\" => 'Camarão', \"cat\" => 'peixe'},\n  {\"id\" => 14, \"n\" => 'Manteiga', \"cat\" => 'frios'},\n  {\"id\" => 15, \"n\" => 'Salmão', \"cat\" => 'peixe'},\n  {\"id\" => 16, \"n\" => 'Cenoura', \"cat\" => 'legume'},\n  {\"id\" => 17, \"n\" => 'Ovos', \"cat\" => 'unitario'},\n  {\"id\" => 18, \"n\" => 'Cebola', \"cat\" => 'legume'},\n  {\"id\" => 19, \"n\" => 'Carne Moída (Patinho)', \"cat\" => 'carne_comum'},\n  {\"id\" => 20, \"n\" => 'Leite Integral', \"cat\" => 'liquido'},\n  {\"id\" => 21, \"n\" => 'Presunto', \"cat\" => 'frios'}\n];\nidx = (field('id_estoque') - 1) % db.length;\ndb[idx]"
+  },
+  {
+    "name": "id_ingrediente",
+    "type": "Formula",
+    "value": "master = field('_master_ing'); master ? master['id'] : nil"
+  },
+  {
+    "name": "nome_ingrediente",
+    "type": "Formula",
+    "value": "master = field('_master_ing'); master ? master['n'] : nil"
+  },
+  {
+    "name": "data_compra",
+    "type": "Formula",
+    "value": "d = date('2026-05-04');\nr = random(0,100);\nif r < 2 then nil \nelsif r < 15 then d.strftime('%d/%m/%Y') \nelsif r < 30 then d.strftime('%d-%m-%Y') \nelse d.strftime('%Y-%m-%d') end"
+  },
+  {
+    "name": "quantidade_estoque",
+    "type": "Formula",
+    "value": "master = field('_master_ing');\nif master;\n  cat = master['cat'];\n  if ['grao', 'massa'].include?(cat) then qty = random(40, 80)\n  elsif ['carne_nobre', 'peixe'].include?(cat) then qty = random(5, 12)\n  elsif ['carne_comum', 'legume'].include?(cat) then qty = random(15, 30)\n  else qty = random(5, 15) end;\n  r = random(0,100);\n  if r < 3 then nil elsif r < 12 then \"#{qty}kg\" else qty end;\nelse;\n  nil;\nend"
+  },
+  {
+    "name": "preço_unidade",
+    "type": "Formula",
+    "value": "master = field('_master_ing');\nif master;\n  cat = master['cat'];\n  if cat == 'carne_nobre' then p = random(80, 115)\n  elsif cat == 'peixe' then p = random(55, 90)\n  elsif cat == 'frios' then p = random(30, 55)\n  elsif cat == 'carne_comum' then p = random(26, 42)\n  else p = random(5, 15) end;\n  p_final = (p * (random(95, 105)/100.0)).round(2);\n  r = random(0,100);\n  if r < 3 then nil elsif r < 10 then \"R$ #{p_final}\" else p_final end;\nelse;\n  nil;\nend"
+  }
+]

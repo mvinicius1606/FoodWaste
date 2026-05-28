@@ -1,1 +1,20 @@
+name: Pipeline Ingestão FoodWaste
 
+on:
+  schedule:
+    - cron: '0 12 * * 1'
+  
+  workflow_dispatch:
+
+jobs:
+  disparar_ingestao:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Executando chamada para Ingestão de Vendas
+        run: |
+          curl -X POST "http://O_IP_DA_SUA_MAQUINA_OU_URL:8000/ingestao/vendas-semanais"
+
+      - name: Executando chamada para Ingestão de Ingredientes
+        run: |
+          curl -X POST "http://O_IP_DA_SUA_MAQUINA_OU_URL:8000/ingestao/estoque-ingredientes"
