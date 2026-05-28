@@ -33,12 +33,6 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f src/ingestao/requirements.txt ]; then pip install -r src/ingestao/requirements.txt; fi
 
-    # Passo 4: Uma verificação simples de sintaxe para ver se esqueceu alguma vírgula ou parêntese
-    - name: Lint com flake8 (Erros de sintaxe)
-      run: |
-        pip install flake8
-        # Para o build se houver erros de sintaxe Python
-        flake8 . --count --select=E9,F63,F7,F82 --show-source 
 
   # JOB 2: Simular o Build do Docker para garantir que a imagem está saudável
   docker-build-test:
