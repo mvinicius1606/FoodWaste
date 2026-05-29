@@ -30,17 +30,22 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f src/ingestao/requirements.txt ]; then pip install -r src/ingestao/requirements.txt; fi
 
+    - name: Lint com flake8 (Erros de sintaxe)
+      run: |
+        pip install flake8
+        # Varre o projeto buscando erros críticos de sintaxe
+        flake8 . --count --select=E9,F63,F7,F82 --show-source
 
-  # JOB 2: Simular o Build do Docker para garantir que a imagem está saudável
-  docker-build-test:
-    needs: lint-and-test # Só roda se o teste de cima passar!
+  # JOB 2: Buildar o Docker e executar a carga direto no S3
+  docker-build-and-run:
+    needs: lint-and-test # Só roda se o Python passar no teste acima
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout do código
       uses: actions/checkout@v4
 
-    # MÁGICA: Pega o bloco de texto do cofre e cria o arquivo .env pro Docker usar
+    # MÁGICA: Pega o bloco de texto do cofre (ENV_FILE) e recria o arquivo .env
     - name: Criar arquivo .env a partir do GitHub Secrets
       run: |
         echo "${{ secrets.ENV_FILE }}" > .env
@@ -48,10 +53,12 @@ jobs:
     - name: Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    # Tenta buildar a imagem usando o seu Dockerfile
-    - name: Testar Build da Imagem Docker
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: src/ingestao/Dockerfile
-        push: false # Mantenha false até decidir enviar a imagem para o Docker Hub ou AWS ECR
+    # Constrói a sua imagem Docker a partir da raiz do projeto
+    - name: Construir Imagem Docker do Pipeline
+      run: |
+        docker build -t foodwaste-api-ingestao -f src/ingestao/Dockerfile .
+
+    # EXECUÇÃO DO SCRIPT: Liga o container passando o .env e força a execução direta do script Python
+    - name: Executar Ingestão de Dados (Lançar Vendas no S3)
+      run: |
+        docker run --env-file .env foodwaste-api-ingestao python -m ingestao.ingestaoapi

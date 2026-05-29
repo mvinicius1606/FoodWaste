@@ -150,3 +150,17 @@ def disparar_ingestao_ingredientes(background_tasks: BackgroundTasks):
     logger.info("Endpoint HTTP GET '/ingredientes/ingestao' foi acionado.")
     background_tasks.add_task(executar_pipeline_ingredientes)
     return {"status": "Processamento de estoque de ingredientes iniciado em segundo plano"}   
+
+# =====================================================================
+# GATILHO DE EXECUÇÃO DIRETA (Usado de forma autônoma pelo GitHub Actions)
+# =====================================================================
+if __name__ == "__main__":
+    print("\n🚀 [AUTO-RUN] Iniciando execução direta do pipeline de ingestão...")
+    
+    print("🔄 1/2 Processando Ingestão de Vendas...")
+    executar_pipeline_vendas()
+    
+    print("🔄 2/2 Processando Ingestão de Estoque de Ingredientes...")
+    executar_pipeline_ingredientes()
+    
+    print("✅ [AUTO-RUN] Execução do pipeline finalizada com sucesso!")
