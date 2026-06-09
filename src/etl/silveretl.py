@@ -1,35 +1,33 @@
 # %% ==========================================================================
 # SESSÃO 1: IMPORTAÇÕES E CONFIGURAÇÕES DE BIBLIOTECAS
 # ==========================================================================
-# AFIRMAÇÃO: Carregando todas as dependências oficiais para processamento matricial, manipulação de XML e conexões AWS.
+# AFIRMAÇÃO: Carregando todas as dependências oficiais para processamento matricial, validação e conexões AWS.
 import os
-import io
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Optional     
 import boto3
 import pandas as pd
 import awswrangler as wr
 import pandera.pandas as pa
 from pandera import Column, Check
 from dotenv import load_dotenv
+import IPython
 
 # %% ==========================================================================
-# SESSÃO 2: MOTOR DA CLASSE PRINCIPAL E MÉTODOS DE CONTENÇÃO (ETL COMPARTILHADO)
+# SESSÃO 2: CLASSE PRINCIPAL E CONSTRUTOR DE INFRAESTRUTURA
 # ==========================================================================
 class SilverPipelineETL:
     
-    def __init__(self, data_execucao: datetime = None): # type: ignore
+    def __init__(self, data_execucao: datetime = None):
         # AFIRMAÇÃO: Atualizando as credenciais de ambiente do arquivo .env de forma explícita.
         load_dotenv(override=True)   
 
         # AFIRMAÇÃO: Configurando o Logger central para rastreamento de anomalias em tempo real.
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger("silver-pipeline-etl")
-        self.logger.setLevel(logging.INFO)
 
-        # AFIRMAÇÃO: Fixando o ponteiro de execução cronológica do lote diário.
+        # AFIRMAÇÃO: Fixando o ponteiro de execução cronológica do lote diário (Default: Ontem para Automação).
         if data_execucao is None:
             data_execucao = datetime.now() - timedelta(days=1)
         self.data_processamento = data_execucao
@@ -42,88 +40,22 @@ class SilverPipelineETL:
         self.bucket_silver = bucket_silver_raw.replace("s3://", "").split("/")[0]
         self.database_silver = os.getenv("DATABASE_SILVER")
 
-        # AFIRMAÇÃO: Validando defensivamente se as variáveis de infraestrutura essencial estão preenchidas.
         if not self.bucket_bronze or not self.bucket_silver or not self.database_silver:
             raise ValueError("❌ Configurações críticas ausentes no arquivo .env!") 
         
-        # AFIRMAÇÃO: Criando sessão segura e instanciando o cliente boto3 direcionado à região correta.
+        # AFIRMAÇÃO: Criando sessão segura e instanciando o cliente boto3.
         self.session = boto3.Session(region_name=self.region)
         boto3.setup_default_session(region_name=self.region)
         self.s3 = boto3.client("s3", region_name=self.region)
-        self.logger.info("✅ Conexões de rede com AWS S3 estabelecidas.")
 
-        # AFIRMAÇÃO: Executando a ingestão estática da tabela_menu.csv e gerando o dicionário de mapeamento veloz na memória.
-        try:
-            path_menu = f"s3://{self.bucket_bronze}/tabela_menu.csv"
-            df_menu_raw = wr.s3.read_csv(path=path_menu, boto3_session=self.session)
-            
-            # AFIRMAÇÃO: Formatando os nomes dos pratos em Title Case para garantir o casamento perfeito de strings.
-            df_menu_raw["nome_prato"] = df_menu_raw["nome_prato"].astype(str).str.strip().str.title()
-            
-            # AFIRMAÇÃO: Construindo o dicionário de-para estruturado mapeando {Nome do Prato: ID do Prato}.
-            self.mapa_menu_id = dict(zip(df_menu_raw["nome_prato"], df_menu_raw["id_prato"]))
-            self.logger.info(f"📋 Tabela Menu mapeada na memória com sucesso! Elementos catalogados: {len(self.mapa_menu_id)}")
-        except Exception as menu_err:
-            self.logger.warning(f"⚠️ Alerta de resiliência: tabela_menu.csv indisponível ({menu_err}). Mapeador iniciado vazio.")
-            self.mapa_menu_id = {}
-
-    # -------------------------------------------------------------------------
-    # MÉTODO DE CONTENÇÃO AVANÇADO (BUNKER CONTRA COLUNAS AUSENTES OU EM BRANCO)
-    # -------------------------------------------------------------------------
-    def _aplicar_metodo_contencao(self, df: pd.DataFrame, contrato_esperado: dict) -> pd.DataFrame:
-        # AFIRMAÇÃO: Injetando colunas ausentes e preenchendo valores nulos/vazios com fallbacks padrões regulamentados.
-        for coluna, valor_padrao in contrato_esperado.items():
-            if coluna not in df.columns:
-                self.logger.warning(f"🚨 [MÉTODO CONTENÇÃO] Coluna obrigatória '{coluna}' ausente no lote! Criando com padrão: {valor_padrao}")
-                df[coluna] = valor_padrao
-            else:
-                # AFIRMAÇÃO: Tratando linhas que vieram na estrutura mas com valores totalmente nulos ou em branco.
-                df[coluna] = df[coluna].fillna(valor_padrao)
-                if df[coluna].astype(str).str.strip().replace(["nan", "None", ""], "").eq("").all():
-                    df[coluna] = valor_padrao
-        return df
-
-    # -------------------------------------------------------------------------
-    # MOTORES AUXILIARES REUTILIZÁVEIS DE HIGIENIZAÇÃO DE TIPOS
-    # -------------------------------------------------------------------------
-    def _remover_sujeira_e_converter_numerico(self, df: pd.DataFrame, coluna: str, poluentes: list = []) -> pd.DataFrame:
-        # AFIRMAÇÃO: Expurgando caracteres textuais de campos de métricas, tratando falhas de coerção e forçando o absoluto positivo.
-        if coluna in df.columns:
-            df[coluna] = df[coluna].astype(str)
-            for lixo in poluentes:
-                df[coluna] = df[coluna].str.replace(lixo, "", case=False, regex=False)
-            df[coluna] = df[coluna].str.replace(" ", "", regex=False).str.strip()
-            df[coluna] = pd.to_numeric(df[coluna], errors="coerce").fillna(0.0).abs()
-        return df
-
-    def _higienizar_strings(self, df: pd.DataFrame, coluna: str, formatar_iniciais: bool = False) -> pd.DataFrame:
-        # AFIRMAÇÃO: Eliminando espaços em branco e aplicando capitalização Title Case nas strings de nomes e pratos.
-        if coluna in df.columns:
-            df[coluna] = df[coluna].astype(str).str.strip()
-            df[coluna] = df[coluna].replace(["nan", "None", "NaN", ""], "Não Informado")
-            if formatar_iniciais:
-                df[coluna] = df[coluna].str.title()
-        return df
-
-    def _aplicar_mascara_data(self, df: pd.DataFrame, coluna: str, data_default: str) -> pd.DataFrame:
-        # AFIRMAÇÃO: Padronizando variações textuais de datas cronológicas para a máscara imutável dd/mm/AAAA.
-        if coluna in df.columns:
-            df[coluna] = pd.to_datetime(df[coluna], format="mixed", errors="coerce").dt.strftime("%d/%m/%Y")
-            df[coluna] = df[coluna].fillna(data_default)
-        return df
-
-    # -------------------------------------------------------------------------
-    # SESSÃO 3: PROCESSAMENTO DOS DADOS DE ESTOQUE (MÉTODO DA CLASSE)
-    # -------------------------------------------------------------------------
+# ==========================================================================
+# SESSÃO 3: PROCESSAMENTO DOS DADOS DE ESTOQUE (ESTEIRA COMPROVADA)
+# ==========================================================================
     def processar_dados_estoque(self):
-        # AFIRMAÇÃO: Iniciando o ciclo incremental de extração e higienização da tabela estoque_ingredientes.
         self.logger.info("⏳ Processando dados incrementais de estoque_ingredientes...")
         try:
-            ano = self.data_processamento.strftime("%Y")
-            mes = self.data_processamento.strftime("%m")
-            dia = self.data_processamento.strftime("%d")
+            ano, mes, dia = self.data_processamento.strftime("%Y"), self.data_processamento.strftime("%m"), self.data_processamento.strftime("%d")
 
-            # AFIRMAÇÃO: Lendo os arquivos JSON brutos diretamente da camada Bronze com filtros de partição.
             path_estoque = f"s3://{self.bucket_bronze}/estoque_ingredientes/"
             df_estoque = wr.s3.read_json(
                 path=path_estoque, dataset=True,
@@ -132,174 +64,254 @@ class SilverPipelineETL:
             )
             
             if df_estoque.empty:
-                self.logger.warning(f"⚠️ Lote de estoque vazio na Bronze para o dia {dia}/{mes}/{ano}.")
+                self.logger.warning("⚠️ Lote de estoque vazio na Bronze.")
                 return None
 
-            # AFIRMAÇÃO: Reestruturando o layout horizontal de arrays do JSON para linhas independentes.
+            # AFIRMAÇÃO: Achatando a estrutura horizontal de arrays do JSON.
             colunas_dados = [c for c in df_estoque.columns if c not in ["ano", "mes", "dia"]]
             lista_registros = df_estoque[colunas_dados].iloc[0].dropna().tolist()
             df_vertical = pd.DataFrame(lista_registros)
             
-            # AFIRMAÇÃO: Aplicando o json_normalize para achatar sub-objetos da coluna _master_ing.
-            df_flat = pd.json_normalize(df_vertical["_master_ing"]).reset_index(drop=True) # type: ignore
-            df_estoque_processado = df_vertical.drop(columns=["_master_ing"]).reset_index(drop=True).join(df_flat)
+            df_flat = pd.json_normalize(df_vertical["_master_ing"]).reset_index(drop=True)
+            df_estoque_clean = df_vertical.drop(columns=["_master_ing"]).reset_index(drop=True).join(df_flat)
 
-            # AFIRMAÇÃO: Efetuando a limpeza de metadados redundantes e renomeando campos abreviados.
-            df_estoque_processado = df_estoque_processado.rename(columns={"cat": "categoria"})
-            df_estoque_processado = df_estoque_processado.drop(columns=["id_estoque", "id", "n"], errors="ignore")
+            # AFIRMAÇÃO: Renomeando abreviações e expurgando metadados redundantes.
+            df_estoque_clean = df_estoque_clean.rename(columns={"cat": "categoria"})
+            df_estoque_clean = df_estoque_clean.drop(columns=["id_estoque", "id", "n"], errors="ignore")
 
-            # AFIRMAÇÃO: Ativando a contenção defensiva na esteira de estoque para mitigar colunas deletadas.
-            contrato_estoque = {
-                "id_ingrediente": "0", "nome_ingrediente": "Não Informado", "data_compra": f"{dia}/{mes}/{ano}",
-                "quantidade_estoque": "0.0", "preço_unidade": "0.0", "categoria": "Não Informado"
-            }
-            df_estoque_processado = self._aplicar_metodo_contencao(df_estoque_processado, contrato_estoque)
-
-            # AFIRMAÇÃO: Rodando as funções modulares de limpeza e conversão de strings na tabela de estoque.
-            df_estoque_processado = self._aplicar_mascara_data(df_estoque_processado, "data_compra", f"{dia}/{mes}/{ano}")
-            df_estoque_processado = self._higienizar_strings(df_estoque_processado, "nome_ingrediente")
-            df_estoque_processado = self._higienizar_strings(df_estoque_processado, "categoria")
+            # AFIRMAÇÃO: Limpeza, máscaras cronológicas e tratamento de caracteres textuais de moedas e pesos.
+            df_estoque_clean["data_compra"] = pd.to_datetime(df_estoque_clean["data_compra"], format="mixed", errors="coerce").dt.strftime("%d/%m/%Y")
+            df_estoque_clean["data_compra"] = df_estoque_clean["data_compra"].fillna(f"{dia}/{mes}/{ano}")
             
-            df_estoque_processado = self._remover_sujeira_e_converter_numerico(df_estoque_processado, "id_ingrediente")
-            df_estoque_processado = self._remover_sujeira_e_converter_numerico(df_estoque_processado, "quantidade_estoque", poluentes=["kg"])
-            df_estoque_processado = self._remover_sujeira_e_converter_numerico(df_estoque_processado, "preço_unidade", poluentes=["R$"])
+            df_estoque_clean["nome_ingrediente"] = df_estoque_clean["nome_ingrediente"].astype(str).str.strip().str.title().replace(["Nan", "None", ""], "Não Informado")
+            df_estoque_clean["categoria"] = df_estoque_clean["categoria"].astype(str).str.strip().str.title().replace(["Nan", "None", ""], "Não Informado")
+            
+            df_estoque_clean["id_ingrediente"] = pd.to_numeric(df_estoque_clean["id_ingrediente"], errors="coerce").fillna(0).astype(int).abs()
+            
+            df_estoque_clean["quantidade_estoque"] = df_estoque_clean["quantidade_estoque"].astype(str).str.replace("kg", "", case=False, regex=False).str.replace(" ", "")
+            df_estoque_clean["quantidade_estoque"] = pd.to_numeric(df_estoque_clean["quantidade_estoque"], errors="coerce").fillna(0.0).astype(float).abs()
 
-            # AFIRMAÇÃO: Forçando as tipagens físicas exatas no Pandas para blindar o lote contra oscilações automáticas.
-            df_estoque_processado["id_ingrediente"] = df_estoque_processado["id_ingrediente"].astype(int)
-            df_estoque_processado["quantidade_estoque"] = df_estoque_processado["quantidade_estoque"].astype(float)
-            df_estoque_processado["preço_unidade"] = df_estoque_processado["preço_unidade"].astype(float)
+            df_estoque_clean["preço_unidade"] = df_estoque_clean["preço_unidade"].astype(str).str.replace("R$", "", case=False, regex=False).str.replace(" ", "")
+            df_estoque_clean["preço_unidade"] = pd.to_numeric(df_estoque_clean["preço_unidade"], errors="coerce").fillna(0.0).astype(float).abs()
 
-            # AFIRMAÇÃO: Integrando as colunas de controle organizacional de partição.
-            df_estoque_processado["ano"], df_estoque_processado["mes"], df_estoque_processado["dia"] = str(ano), str(mes), str(dia)
+            df_estoque_clean["ano"], df_estoque_clean["mes"], df_estoque_clean["dia"] = str(ano), str(mes), str(dia)
 
-            # AFIRMAÇÃO: Submetendo o DataFrame final de estoque ao crivo de qualidade do Pandera com coerção nativa.
+            # AFIRMAÇÃO: Validação de Qualidade de Dados com o Pandera.
             schema_estoque = pa.DataFrameSchema({
                 "id_ingrediente": Column(pa.Int, coerce=True, nullable=False),
                 "nome_ingrediente": Column(pa.String, nullable=False),
                 "data_compra": Column(pa.String, nullable=False),
-                "quantidade_estoque": Column(pa.Float, Check.greater_than_or_equal_to(0), coerce=True),
-                "preço_unidade": Column(pa.Float, Check.greater_than_or_equal_to(0), coerce=True),
+                "quantidade_estoque": Column(pa.Float, Check.greater_than_or_equal_to(0.0), coerce=True),
+                "preço_unidade": Column(pa.Float, Check.greater_than_or_equal_to(0.0), coerce=True),
                 "categoria": Column(pa.String, nullable=False)
             })
-            schema_estoque.validate(df_estoque_processado, inplace=True)
+            schema_estoque.validate(df_estoque_clean, inplace=True)
 
-            # AFIRMAÇÃO: Despachando os dados consolidados do estoque em Parquet particionado para a Silver.
+            # AFIRMAÇÃO: Persistindo os dados do estoque na camada Silver.
             wr.s3.to_parquet(
-                df=df_estoque_processado, path=f"s3://{self.bucket_silver}/prata/estoque_ingredientes/", dataset=True,
+                df=df_estoque_clean, path=f"s3://{self.bucket_silver}/prata/estoque_ingredientes/", dataset=True,
                 database=self.database_silver, table="estoque_ingredientes",
                 partition_cols=["ano", "mes", "dia"], mode="overwrite_partitions", boto3_session=self.session
             )
-            return df_estoque_processado
+            return df_estoque_clean
         except Exception as e:
             self.logger.error(f"❌ Erro na esteira de estoque: {e}")
             raise e
 
-    # -------------------------------------------------------------------------
-    # SESSÃO 4: PROCESSAMENTO DOS DADOS DE VENDAS (MÉTODO DA CLASSE)
-    # -------------------------------------------------------------------------
+# ==========================================================================
+# SESSÃO 4: PROCESSAMENTO DOS DADOS DE VENDAS (ESTEIRA COM ÂNCORA DA VERDADE)
+# ==========================================================================
     def processar_dados_vendas(self):
-        # AFIRMAÇÃO: Inicializando o ciclo de leitura, explosão e enriquecimento da tabela vendas_semanais.
         self.logger.info("⏳ Processando dados incrementais de vendas_semanais...")
         try:
-            ano = self.data_processamento.strftime("%Y")
-            mes = self.data_processamento.strftime("%m")
-            dia = self.data_processamento.strftime("%d")
+            ano, mes, dia = self.data_processamento.strftime("%Y"), self.data_processamento.strftime("%m"), self.data_processamento.strftime("%d")
 
-            # AFIRMAÇÃO: Mapeando caminhos e capturando arquivos XML contidos no diretório de destino.
+            # -------------------------------------------------------------------------
+            # FASE 1: EXTRAÇÃO DO MENU E ENVIO DO 'DICIONARIO_PRATOS' PARA A SILVER
+            # -------------------------------------------------------------------------
+            path_menu = f"s3://{self.bucket_bronze}/tabela_menu.csv"
+            df_menu = wr.s3.read_csv(path=path_menu, boto3_session=self.session)
+            
+            df_menu["id_prato"] = df_menu["id_prato"].astype(int)
+            df_menu["prato"] = df_menu["prato"].astype(str).str.strip().str.title()
+            df_menu["ingrediente"] = df_menu["ingrediente"].astype(str).str.strip().str.title()
+            df_menu["qtd_base_kg"] = df_menu["qtd_base_kg"].astype(float)
+            df_menu["preço_venda"] = df_menu["preço_venda"].astype(str).str.replace("R$", "", case=False, regex=False).str.replace(" ", "")
+            df_menu["preço_venda"] = pd.to_numeric(df_menu["preço_venda"], errors="coerce").fillna(0.0).astype(float)
+
+            # REQUISITO: Salvando o Dicionário de Pratos na camada Silver
+            df_dic_pratos = df_menu[["id_prato", "prato", "preço_venda"]].drop_duplicates().reset_index(drop=True)
+            wr.s3.to_parquet(
+                df=df_dic_pratos, path=f"s3://{self.bucket_silver}/prata/dicionario_pratos/", dataset=True,
+                database=self.database_silver, table="dicionario_pratos", mode="overwrite", boto3_session=self.session
+            )
+
+            # AFIRMAÇÃO: Indexando as Tabelas Hash em memória (Tempo O(1) de busca).
+            dict_menu_preco = dict(zip(df_menu["id_prato"], df_menu["preço_venda"]))
+            dict_menu_id_to_nome = dict(zip(df_menu["id_prato"], df_menu["prato"]))
+            dict_menu_nome_to_id = dict(zip(df_menu["prato"], df_menu["id_prato"]))
+            dict_menu_ingredientes = df_menu.groupby("id_prato")["ingrediente"].apply(list).to_dict()
+            dict_menu_qtd_base = df_menu.set_index(["id_prato", "ingrediente"])["qtd_base_kg"].to_dict()
+
+            # -------------------------------------------------------------------------
+            # FASE 2: EXTRAÇÃO AND PARSER DIRECIONADO DO XML DE VENDAS
+            # -------------------------------------------------------------------------
             path_particao = f"s3://{self.bucket_bronze}/vendas_semanais/ano={ano}/mes={mes}/dia={dia}/"
             todos_arquivos = wr.s3.list_objects(path=path_particao, boto3_session=self.session)
             arquivos_xml = [arq for arq in todos_arquivos if arq.lower().endswith('.xml')]
 
             if not arquivos_xml:
-                self.logger.warning(f"⚠️ Lote de vendas vazio na Bronze para o dia {dia}/{mes}/{ano}.")
+                self.logger.warning("⚠️ Lote de vendas vazio na Bronze.")
                 return None
 
-            # AFIRMAÇÃO: Extraindo bytes textuais do XML unificado via cliente seguro do Boto3.
-            response = self.s3.get_object(Bucket=self.bucket_bronze.replace("s3://", "").split("/")[0], Key=arquivos_xml[0].replace(f"s3://{self.bucket_bronze}/", "")) # type: ignore
+            response = self.s3.get_object(Bucket=self.bucket_bronze.replace("s3://", "").split("/")[0], Key=arquivos_xml[0].replace(f"s3://{self.bucket_bronze}/", ""))
             root = ET.fromstring(response['Body'].read())
             lista_vendas = []
 
-            # AFIRMAÇÃO: Executando algoritmo de desmembramento do ElementTree para correlacionar cabeçalhos e explodir itens.
-            for bloco in root.findall(".//item"):
-                dados_venda_base = {}
-                lista_itens = []
-                for elemento in bloco:
-                    if len(elemento) == 0:
-                        dados_venda_base[elemento.tag] = elemento.text
-                    else:
-                        for sub_elemento in elemento:
-                            dados_sub = {neto.tag: neto.text for neto in sub_elemento}
-                            if dados_sub:
-                                lista_itens.append(dados_sub)
-                
-                for item_detalhe in (lista_itens if lista_itens else [{}]):
-                    lista_vendas.append({**dados_venda_base, **item_detalhe})
+            # ✨ ENGENHARIA ANTI-ANINHAMENTO: Captura apenas os elementos planos da transação primária
+            for item_venda in root.findall("./vendas/item"):
+                dados_linha = {}
+                for elem in item_venda:
+                    tag_limpa = elem.tag.lower().strip()
+                    if tag_limpa != "_master_venda" and elem.text:
+                        dados_linha[tag_limpa] = elem.text.strip()
+                if dados_linha:
+                    lista_vendas.append(dados_linha)
 
             df_vendas = pd.DataFrame(lista_vendas)
 
-            # AFIRMAÇÃO: Efetuando o mapeamento de campos de desperdício e expurgando colunas de checagem boleana.
+            # -------------------------------------------------------------------------
+            # FASE 3: MAPEAmento DEFENSIVO E REMOÇÃO CIRÚRGICA DE COLUNAS SOLICITADAS
+            # -------------------------------------------------------------------------
+            # AFIRMAÇÃO: Copia os valores das colunas originais antes da exclusão estrutural para garantir a carga.
+            if "id_prato_fk" in df_vendas.columns:
+                df_vendas["id_prato"] = df_vendas["id_prato_fk"]
+            if "desperdicio_clientes" in df_vendas.columns:
+                df_vendas["alimento_desperdiçado"] = df_vendas["desperdicio_clientes"]
             if "quantidade_desperdiçada_g" in df_vendas.columns:
-                df_vendas = df_vendas.rename(columns={"quantidade_desperdiçada_g": "quantidade_desperdiçada_kg"})
-            df_vendas = df_vendas.rename(columns={"desperdicio_cliente": "alimento_desperdiçado"})
-            df_vendas = df_vendas.drop(columns=["item", "desperdiçado_bool", "desperdicio_bool"], errors="ignore")
+                df_vendas["quantidade_desperdiçada_kg"] = df_vendas["quantidade_desperdiçada_g"]
 
-            # AFIRMAÇÃO: Ativando a contenção defensiva estrita (bunker anti-KeyError) com mapeamento completo de colunas obrigatórias.
-            contrato_vendas = {
-                "id_venda": "0", "id_cliente": "0", "nome_cliente": "Não Informado",
-                "id_prato": "0", "prato_comprado": "Não Informado", "valor_gasto": "0.0",
-                "alimento_desperdiçado": "Não Informado", "quantidade_desperdiçada_kg": "0.0",
-                "data_venda": f"{dia}/{mes}/{ano}"
-            }
-            df_vendas = self._aplicar_metodo_contencao(df_vendas, contrato_vendas)
+            # ✨ REQUISITO IMPERATIVO: Remoção explícita de todas as colunas de lixo estrutural e antigas chaves
+            df_vendas = df_vendas.drop(columns=["id_prato_fk", "desperdicio_clientes", "id", "n", "p", "quantidade_desperdiçada_g"], errors="ignore")
 
-            # AFIRMAÇÃO: Padronizando strings complexas e aplicando Title Case nas colunas textuais.
-            df_vendas = self._aplicar_mascara_data(df_vendas, "data_venda", f"{dia}/{mes}/{ano}")
-            df_vendas = self._higienizar_strings(df_vendas, "nome_cliente", formatar_iniciais=True)
-            df_vendas = self._higienizar_strings(df_vendas, "prato_comprado", formatar_iniciais=True)
-            df_vendas = self._higienizar_strings(df_vendas, "alimento_desperdiçado")
+            # AFIRMAÇÃO: Garante que as colunas de destino existam na contenção pós-drop
+            for col_target in ["id_prato", "alimento_desperdiçado", "quantidade_desperdiçada_kg"]:
+                if col_target not in df_vendas.columns:
+                    df_vendas[col_target] = None
 
-            # AFIRMAÇÃO: Limpando fragmentos de moedas e calculando o valor absoluto numérico inicial.
-            df_vendas = self._remover_sujeira_e_converter_numerico(df_vendas, "id_cliente")
-            df_vendas = self._remover_sujeira_e_converter_numerico(df_vendas, "id_prato")
-            df_vendas = self._remover_sujeira_e_converter_numerico(df_vendas, "valor_gasto", poluentes=["R$"])
+            # -------------------------------------------------------------------------
+            # FASE 4: HIGIENIZAÇÃO CRONOLÓGICA E CONVERSÃO DE TIPOS PRIMITIVOS
+            # -------------------------------------------------------------------------
+            df_vendas["data_venda"] = pd.to_datetime(df_vendas["data_venda"], format="mixed", errors="coerce").dt.strftime("%d/%m/%Y")
+            df_vendas["data_venda"] = df_vendas["data_venda"].fillna(f"{dia}/{mes}/{ano}")
 
-            # ✨ PULO DO GATO CENTRAL: Enriquecimento de Dados. Se o id_prato veio zerado ou nulo, recupera via dicionário do menu.
-            mascara_id_ausente = (df_vendas["id_prato"] == 0) | (df_vendas["id_prato"].isna())
-            if not df_vendas[mascara_id_ausente].empty:
-                self.logger.info(f"🕵️‍♂️ [ENRIQUECIMENTO] Resgatando {len(df_vendas[mascara_id_ausente])} id_prato ausentes cruzando chaves com a tabela_menu...")
-                df_vendas.loc[mascara_id_ausente, "id_prato"] = df_vendas.loc[mascara_id_ausente, "prato_comprado"].map(self.mapa_menu_id)
+            df_vendas["id_venda"] = pd.to_numeric(df_vendas["id_venda"], errors="coerce").fillna(0).astype(int).abs()
+            df_vendas["id_cliente"] = pd.to_numeric(df_vendas["id_cliente"], errors="coerce").fillna(0).astype(int).abs()
+            df_vendas["id_prato"] = pd.to_numeric(df_vendas["id_prato"], errors="coerce").fillna(0).astype(int).abs()
 
-            # AFIRMAÇÃO: Consolidando tipos físicos finais e preenchendo falhas de pratos não catalogados com 0.
-            df_vendas["id_cliente"] = df_vendas["id_cliente"].astype(int)
-            df_vendas["id_prato"] = df_vendas["id_prato"].fillna(0).astype(int)
-            df_vendas["valor_gasto"] = df_vendas["valor_gasto"].astype(float)
+            df_vendas["desperdicio_bool"] = df_vendas["desperdicio_bool"].astype(str).str.strip().str.lower()
+            df_vendas["desperdicio_bool"] = df_vendas["desperdicio_bool"].map({"true": True, "false": False, "1": True, "0": False}).fillna(False).astype(bool)
 
-            # AFIRMAÇÃO: Forçando consistência cadastral estável: Vinculando o ID do cliente ao primeiro nome válido do grupo.
-            df_vendas["nome_cliente"] = df_vendas.groupby("id_cliente")["nome_cliente"].transform("first").fillna("Cliente Desconhecido")
+            # -------------------------------------------------------------------------
+            # FASE 5: BUNKER DE CLIENTES E ENVIO DO 'DICIONARIO_CLIENTES' PARA A SILVER
+            # -------------------------------------------------------------------------
+            df_vendas["nome_cliente"] = df_vendas["nome_cliente"].astype(str).str.strip().str.title().replace(["None", "Nan", "NaN", ""], pd.NA)
+            
+            df_valid_cts = df_vendas[(df_vendas["id_cliente"] > 0) & (df_vendas["nome_cliente"].notna())]
+            dict_clientes_id_to_nome = dict(zip(df_valid_cts["id_cliente"], df_valid_cts["nome_cliente"]))
+            dict_clientes_nome_to_id = dict(zip(df_valid_cts["nome_cliente"], df_valid_cts["id_cliente"]))
 
-            # AFIRMAÇÃO: Aplicando escala de conversão métrica de massa de gramas para quilos de forma segura.
-            df_vendas = self._remover_sujeira_e_converter_numerico(df_vendas, "quantidade_desperdiçada_kg", poluentes=["g"])
-            if df_vendas["quantidade_desperdiçada_kg"].max() > 50.0: 
-                df_vendas["quantidade_desperdiçada_kg"] = (df_vendas["quantidade_desperdiçada_kg"] / 1000.0).round(4)
-            df_vendas["quantidade_desperdiçada_kg"] = df_vendas["quantidade_desperdiçada_kg"].astype(float)
+            # REQUISITO: Salvando o Dicionário de Clientes consolidando o histórico na Silver
+            df_dic_clientes = pd.DataFrame(list(dict_clientes_id_to_nome.items()), columns=["id_cliente", "nome_cliente"])
+            wr.s3.to_parquet(
+                df=df_dic_clientes, path=f"s3://{self.bucket_silver}/prata/dicionario_clientes/", dataset=True,
+                database=self.database_silver, table="dicionario_clientes", mode="overwrite", boto3_session=self.session
+            )
 
-            # AFIRMAÇÃO: Injetando metadados textuais de controle de partição Silver.
+            # AFIRMAÇÃO: Corrigindo e autopreenchendo lacunas cadastrais via tabelas hash de clientes.
+            mascara_nome_missing = df_vendas["nome_cliente"].isna()
+            if mascara_nome_missing.any():
+                df_vendas.loc[mascara_nome_missing, "nome_cliente"] = df_vendas.loc[mascara_nome_missing, "id_cliente"].map(dict_clientes_id_to_nome)
+
+            mascara_id_missing = df_vendas["id_cliente"] == 0
+            if mascara_id_missing.any():
+                df_vendas.loc[mascara_id_missing, "id_cliente"] = df_vendas.loc[mascara_id_missing, "nome_cliente"].map(dict_clientes_nome_to_id).fillna(0).astype(int)
+
+            df_vendas["nome_cliente"] = df_vendas["nome_cliente"].fillna("Cliente Desconhecido")
+
+            # -------------------------------------------------------------------------
+            # FASE 6: SINCRONIZAÇÃO DE CARDÁPIO E BLINDAGEM DE PREÇO (VALOR GASTO)
+            # -------------------------------------------------------------------------
+            df_vendas["prato_comprado"] = df_vendas["prato_comprado"].astype(str).str.strip().str.title().replace(["None", "Nan", ""], pd.NA)
+            
+            mascara_prato_id_zero = df_vendas["id_prato"] == 0
+            if mascara_prato_id_zero.any():
+                df_vendas.loc[mascara_prato_id_zero, "id_prato"] = df_vendas.loc[mascara_prato_id_zero, "prato_comprado"].map(dict_menu_nome_to_id).fillna(0).astype(int)
+
+            # AFIRMAÇÃO: Forçando o alinhamento nominal com o menu oficial e injetando o Preço de Venda tabelado.
+            df_vendas["prato_comprado"] = df_vendas["id_prato"].map(dict_menu_id_to_nome).fillna(df_vendas["prato_comprado"]).fillna("Não Informado")
+            df_vendas["valor_gasto"] = df_vendas["id_prato"].map(dict_menu_preco).fillna(0.0).astype(float)
+
+            # -------------------------------------------------------------------------
+            # FASE 7: MOTOR DE AUDITORIA DE COMPOSIÇÃO DE RECEITAS E CLAMPING DE MASSA
+            # -------------------------------------------------------------------------
+            df_vendas["quantidade_desperdiçada_kg"] = df_vendas["quantidade_desperdiçada_kg"].astype(str).str.replace("g", "", case=False, regex=False).str.replace(" ", "")
+            df_vendas["quantidade_desperdiçada_kg"] = pd.to_numeric(df_vendas["quantidade_desperdiçada_kg"], errors="coerce").fillna(0.0).astype(float)
+
+            def aplicar_auditoria_receita(row, menu_ingredientes, menu_qtd_base):
+                id_p, is_desp, qtd_desp = row["id_prato"], row["desperdicio_bool"], row["quantidade_desperdiçada_kg"]
+                ing_desp = str(row["alimento_desperdiçado"]).strip().title()
+                
+                ingredientes_permitidos = menu_ingredientes.get(id_p, [])
+                if not is_desp or not ingredientes_permitidos:
+                    return "Não Informado", 0.0
+                    
+                # ✨ REGRA DE INTEGRALIDADE: Substitui insumos alucinados pelo primeiro ingrediente real da receita
+                ing_final = ing_desp if ing_desp in ingredientes_permitidos else ingredientes_permitidos[0]
+                peso_maximo_permitido = menu_qtd_base.get((id_p, ing_final), 0.0)
+                
+                if qtd_desp > 50.0:
+                    qtd_desp = qtd_desp / 1000.0
+                    
+                # ✨ TRAVA FÍSICA (CLAMPING): Impede que o desperdício seja maior que o peso base da receita
+                if qtd_desp > peso_maximo_permitido:
+                    qtd_desp = peso_maximo_permitido
+                    
+                return ing_final, round(qtd_desp, 4)
+
+            # AFIRMAÇÃO: Executando o motor de auditoria tridimensional protegendo o escopo por argumentos de tupla.
+            df_vendas[["alimento_desperdiçado", "quantidade_desperdiçada_kg"]] = df_vendas.apply(
+                aplicar_auditoria_receita, axis=1, result_type="expand", args=(dict_menu_ingredientes, dict_menu_qtd_base)
+            )
+
+            # AFIRMAÇÃO: Consolidação final do Layout estrito do Contrato Silver (Garante descarte absoluto de sobras).
+            colunas_contrato_silver = [
+                "id_venda", "id_cliente", "nome_cliente", "id_prato", "prato_comprado",
+                "data_venda", "valor_gasto", "alimento_desperdiçado", "quantidade_desperdiçada_kg", "desperdicio_bool"
+            ]
+            df_vendas = df_vendas[colunas_contrato_silver]
+
             df_vendas["ano"], df_vendas["mes"], df_vendas["dia"] = str(ano), str(mes), str(dia)
 
-            # AFIRMAÇÃO: Validando a qualidade das colunas finais de vendas contra o contrato do Pandera.
+            # -------------------------------------------------------------------------
+            # FASE 8: VALIDAÇÃO DO CONTRATO DO PANDERA E GRAVAÇÃO DA FATO
+            # -------------------------------------------------------------------------
             schema_vendas = pa.DataFrameSchema({
+                "id_venda": Column(pa.Int, coerce=True, nullable=False),
                 "id_cliente": Column(pa.Int, coerce=True, nullable=False),
                 "nome_cliente": Column(pa.String, nullable=False),
                 "id_prato": Column(pa.Int, coerce=True, nullable=False),
-                "valor_gasto": Column(pa.Float, Check.greater_than_or_equal_to(0), coerce=True),
-                "quantidade_desperdiçada_kg": Column(pa.Float, Check.greater_than_or_equal_to(0), coerce=True)
+                "prato_comprado": Column(pa.String, nullable=False),
+                "data_venda": Column(pa.String, Check.str_matches(r"^\d{2}/\d{2}/\d{4}$"), nullable=False),
+                "valor_gasto": Column(pa.Float, Check.greater_than(0.0), coerce=True),
+                "alimento_desperdiçado": Column(pa.String, nullable=False),
+                "quantidade_desperdiçada_kg": Column(pa.Float, Check.greater_than_or_equal_to(0.0), coerce=True),
+                "desperdicio_bool": Column(pa.Bool, coerce=True, nullable=False)
             })
             schema_vendas.validate(df_vendas, inplace=True)
 
-            # AFIRMAÇÃO: Salvando as vendas limpas e granuladas em formato Parquet no S3 Silver.
-            path_destino_vendas = f"s3://{self.bucket_silver}/prata/vendas_semanais/"
             wr.s3.to_parquet(
-                df=df_vendas, path=path_destino_vendas, dataset=True,
+                df=df_vendas, path=f"s3://{self.bucket_silver}/prata/vendas_semanais/", dataset=True,
                 database=self.database_silver, table="vendas_semanais",
                 partition_cols=["ano", "mes", "dia"], mode="overwrite_partitions", boto3_session=self.session
             )
@@ -309,71 +321,86 @@ class SilverPipelineETL:
             raise e
 
 # %% ==========================================================================
-# SESSÃO 5: GATILHO PRINCIPAL (ORQUESTRADOR DE AUTOMAÇÃO DO LOTE HISTÓRICO)
+# SESSÃO 5: GATILHO PRINCIPAL (ORQUESTRADOR DINÂMICO DE PRODUÇÃO E TESTES)
 # ==========================================================================
 if __name__ == "__main__":
-    # AFIRMAÇÃO: Estabelecendo o cronograma sequencial de execução dos lotes históricos de dados.
-    datas_backfill = [
-        datetime(2026, 5, 29),
-        datetime(2026, 6, 1),
-        datetime(2026, 6, 8)
-    ]
+    # 🕹️ CONTROLADOR DE AMBIENTE INTERATIVO
+    # MODO_TESTE = False -> Modo Produção Automatizado (Roda ontem dinamicamente para o GitHub Actions)
+    # MODO_TESTE = True  -> Modo de Depuração Jupyter (Roda o backfill das datas históricas fixas abaixo)
+    MODO_TESTE = False 
     
-    print("⏳ [EXECUÇÃO EM CADEIA] Inicializando automação das esteiras Silver...")
-    print("=" * 85)
-    
-    for lote_data in datas_backfill:
-        print(f"\n🚀 Executando processamento integrado para o dia: {lote_data.strftime('%d/%m/%Y')}")
+    if MODO_TESTE:
+        print("🧪 [MODO TESTE] Executando rotina interativa de Backfill para lotes históricos...")
+        datas_execucao = [
+            datetime(2026, 5, 29),
+            datetime(2026, 6, 1),
+            datetime(2026, 6, 8)
+        ]
+    else:
+        print("⏳ [PRODUÇÃO] Inicializando gatilho dinâmico via Cron (GitHub Actions)...")
+        # Fallback automático: captura ontem (datetime.now() - 1 dia)
+        datas_execucao = [datetime.now() - timedelta(days=1)]
         
-        # AFIRMAÇÃO: Instanciando a classe e disparando os pipelines de forma sequencial sem resíduos na memória.
+    print("=" * 95)
+    
+    for lote_data in datas_execucao:
+        print(f"🚀 Executando processamento integrado para a data de corte: {lote_data.strftime('%d/%m/%Y')}")
         pipeline_silver = SilverPipelineETL(data_execucao=lote_data)
-        df_estoque_clean = pipeline_silver.processar_dados_estoque()
-        df_vendas_clean = pipeline_silver.processar_dados_vendas()
+        df_est_ok = pipeline_silver.processar_dados_estoque()
+        df_ven_ok = pipeline_silver.processar_dados_vendas()
         
-    print("\n" + "="*85 + "\n🏆 PIPELINE INTEGRADO DA CAMADA SILVER EXECUTADO COM ABSOLUTO SUCESSO!")
+    print("\n" + "="*95 + "\n🏆 PIPELINE DA CAMADA SILVER PROCESSADO COM SUCESSO!")
 
 # %% ==========================================================================
-# SESSÃO 6: TESTE DO JUPYTER E VALIDAÇÃO ANALÍTICA (S3 E ATHENA)
+# SESSÃO 6: TESTE DO JUPYTER E VALIDAÇÃO ANALÍTICA (VISUALIZAÇÃO COMPLETA)
 # ==========================================================================
-# AFIRMAÇÃO: Disparando queries SQL agregadas no Amazon Athena para auditar a consistência e o volume das partições geradas.
-import os
-import boto3
-import awswrangler as wr
-from dotenv import load_dotenv
-import IPython
-
+# AFIRMAÇÃO: Sincronizando partições criadas no S3 e forçando a leitura analítica via consultas SQL no Amazon Athena.
 load_dotenv(override=True)
-bucket_silver = os.getenv("BUCKET_SILVER")
 database_silver = os.getenv("DATABASE_SILVER")
 aws_region = os.getenv("AWS_REGION")
 
 if aws_region:
     boto3.setup_default_session(region_name=aws_region)
 
-print("🕵️‍♂️ [CONFERÊNCIA DE GOVERNANÇA] Consultando o catálogo do Glue Data Catalog...")
-print("=" * 85)
+print("\n🕵️‍♂️ [AUDITORIA DE GOVERNANÇA ATHENA] Executando MSCK Repair e conferência de tabelas...")
+print("=" * 95)
 
-if not bucket_silver or not database_silver:
-    print("❌ Configurações de destino não localizadas no arquivo .env.")
-else:
-    # AFIRMAÇÃO: Reparando as tabelas no catálogo do Glue para sincronizar as novas partições físicas do S3.
+if database_silver:
+    # Sincroniza as partições no Glue Data Catalog
     wr.athena.start_query_execution(sql="MSCK REPAIR TABLE estoque_ingredientes;", database=database_silver)
     wr.athena.start_query_execution(sql="MSCK REPAIR TABLE vendas_semanais;", database=database_silver)
+    wr.athena.start_query_execution(sql="MSCK REPAIR TABLE dicionario_pratos;", database=database_silver)
+    wr.athena.start_query_execution(sql="MSCK REPAIR TABLE dicionario_clientes;", database=database_silver)
     
-    # AFIRMAÇÃO: Emitindo os relatórios consolidados de volumetria de registros por data.
-    print("\n📊 1. ANÁLISE DE SAÚDE DA TABELA ESTOQUE_INGREDIENTES:")
+    # 1. Auditoria Visual: estoque_ingredientes
+    print("\n🔬 1. TABELA FATO: estoque_ingredientes")
     try:
-        q_est = "SELECT ano, mes, dia, COUNT(*) as registros_processados FROM estoque_ingredientes GROUP BY ano, mes, dia ORDER BY ano, mes, dia;"
-        df_res_est = wr.athena.read_sql_query(sql=q_est, database=database_silver)
-        IPython.display.display(df_res_est) # type: ignore
+        df_aud_est = wr.athena.read_sql_query(sql="SELECT * FROM estoque_ingredientes", database=database_silver)
+        print("👀 [HEAD]")
+        IPython.display.display(df_aud_est.head(5))
+        print(f"📊 Total de linhas no Estoque: {len(df_aud_est)}")
     except Exception as e:
-        print(f"  ⚠️ Tabela de estoque ainda não mapeada no Athena: {e}")
+        print(f"  ⚠️ Erro na auditoria do estoque: {e}")
         
-    print("\n📊 2. ANÁLISE DE SAÚDE DA TABELA VENDAS_SEMANAIS:")
+    # 2. Auditoria Visual: vendas_semanais
+    print("\n" + "-"*95 + "\n🔬 2. TABELA FATO: vendas_semanais (Sem colunas lixo ou obsoletas)")
     try:
-        q_ven = "SELECT ano, mes, dia, COUNT(*) as registros_processados FROM vendas_semanais GROUP BY ano, mes, dia ORDER BY ano, mes, dia;"
-        df_res_ven = wr.athena.read_sql_query(sql=q_ven, database=database_silver)
-        IPython.display.display(df_res_ven) # type: ignore
+        df_aud_ven = wr.athena.read_sql_query(sql="SELECT * FROM vendas_semanais", database=database_silver)
+        print("👀 [HEAD]")
+        IPython.display.display(df_aud_ven.head(5))
+        print(f"📊 Total de linhas em Vendas: {len(df_aud_ven)}")
     except Exception as e:
-        print(f"  ⚠️ Tabela de vendas ainda não mapeada no Athena: {e}")
+        print(f"  ⚠️ Erro na auditoria de vendas: {e}")
+
+    # 3. Auditoria Visual: Tabelas de Dimensões Enviadas
+    print("\n" + "-"*95 + "\n🔬 3. TABELAS DE DIMENSÕES (GRAVADAS EM PARQUET NA SILVER)")
+    try:
+        df_aud_pratos = wr.athena.read_sql_query(sql="SELECT * FROM dicionario_pratos", database=database_silver)
+        df_aud_clientes = wr.athena.read_sql_query(sql="SELECT * FROM dicionario_clientes", database=database_silver)
+        print(f"📋 Dicionário Pratos (Tamanho: {len(df_aud_pratos)}):")
+        IPython.display.display(df_aud_pratos.head(3))
+        print(f"📋 Dicionário Clientes (Tamanho: {len(df_aud_clientes)}):")
+        IPython.display.display(df_aud_clientes.head(3))
+    except Exception as e:
+        print(f"  ⚠️ Erro na auditoria das tabelas de dimensões: {e}")
 # %%
