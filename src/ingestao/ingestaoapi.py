@@ -57,7 +57,7 @@ def executar_pipeline_vendas():
     try:
         logger.info("Iniciando pipeline de ingestão de vendas semanais.")
 
-        numero_linhas = random.randint(500,1000)
+        numero_linhas = random.randint(10000,50000)
         api_vendas_url_linhas = f"{api_vendas_url}&count={numero_linhas}"
 
         response = httpx.get(api_vendas_url_linhas, timeout=30)
